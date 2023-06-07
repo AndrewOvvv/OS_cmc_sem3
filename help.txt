@@ -1,0 +1,130 @@
+gcc -fsanitize=undefined -fsanitize=address -fsanitize=leak
+
+
+Пусть есть число 0x12345678
+
+Big endian (BE)
+Stored: 12 34 56 78
+
+Little endian (LE)
+Stored: 78 56 34 12
+
+
+Программа может исполняться в двух окружениях:
+-CONFORMING - привычное окружение
+-FRESTANDING - голый язык, сам язык и минимальный набор библиотек 
+
+Напишем пример программы работающей по linux и не требующую никаких боблиотек: 002/example1
+для компиляции этого прикола: gcc file.c -Wall -Werror -std=gnu18 -g -o file -nostdlib -nostdinc -ffreestanding
+
+Если хотим скомпилировать статически, то добавляем опцию -static 
+
+Стандартная библиотека-"прослойка" для C: лежит в /lib/libc.so.6
+
+
+СИСТЕМНЫЕ ВЫЗОВЫ
+
+   {freopen, printf| memcpy} -> {smth}  ---------> kernel
+                                          syscall
+
+asm(...) - выполняет ассемблерную вставку
+инструкция int == interapted == прерывание, по стандарту договорились кидать int 0x80 в случае ???????????
+
+exit - call number 1
+write - call number 4
+
+Файловые дескриптор
+
+Number: 0 - STDIN_FILENO (stdin)
+        1 - STDOUT_FILENO (stdout)
+        2 - STDERR_FILENO (stderr)
+
+Рассмотрим файл 002/example2
+
+
+
+Заметим, что getchar и putchar используют буферизацию => работают быстрее чем системные вызовы
+А getchar_unlocked и putchar_unlocked - быстрее из-за ??однопоточной работы?? 
+
+
+
+lseek - call number .. у него три аргумента, позволяет менять текущую позицию чтения файла
+off_t lseek(int fd, off_t offset, int whence)
+Обладает тремя значениями:
+SEEK_SET - с позиции offset 
+SEEK_CUR - текущей позиции + offset 
+SEEK_END - с размера файла + offset
+(о чтении и записи)
+
+об off_t: на 64 битной системе - 64 бита
+          на 32 битной системе - иногда 32 бита, иногда 64 бита (в linux например 32 битв)
+
+В прекомниляции программы можно поставить _FILE_OFFSET_BITS=64 => задаёт размер offset в 64 бита (-D_FILE_OFFSET_BITS=64)
+
+close - call number .., закрытие файлового дескриптора => может быть использован для дальнейших операций
+Возвращает 0 - если всё хорошо
+           1 - если что-то пошло не так
+
+dup2 - call number .., создаёт новый файловый дескриптор 
+dup2(1, 2) - закроет stderr и в 2 скопирует значение fd 1-ого
+
+open - call number .., открывает файл в файловой системе (относительный или абсолютный путь) и создаёт файловый дескриптор
+в частности, open выбирает минимальный СВОБОДНЫЙ файловый дескриптор 
+
+open(path, O_WRONLY | O_TRUNC); O_TRUNC - открывает на перезапись
+open(path, O_WRONLY | O_APPEND); O_APPEND - добавлять в конец всегда (даже при параллельной записи всё норм и данные не затирабтся)
+open(path, ........ | O_CREAT); O_CREAT - если файл существовал, то ничего не делает, если не существовал, то создаст
+                      O_EXCL -всместе с O_CREAT если файл не существует, то создаёт его, иначе если файл существовал, то кидает ошибку
+
+Смотри 003/example1.c
+
+
+
+утилита hexdump  - отображает dump для бинарного файла
+-----> hexdump -C file 
+
+
+VFS - virtual file system
+
+С диском работает <=> block dev. driver <=> File system driver <=> syscall IFace | user_space
+Например, EXT4, EXFAT, NTFS, FFS
+
+
+[...][.....][................]
+  |super|block       |
+        |inodes (file| metadata)
+                     |data 
+                      1) file content]
+                      2) directory content
+                      3) block indirection
+
+
+начало отсчёта в unix - 01.01.1970 00:00:00 UTC (+0)
+unix timestamp - в данном приколе храниться кол-во секунд с НАЧАЛА ОТСЧЁТА В UNIX
+
+системный вызов time()
+
+time_t time();
+
+но у него секундная точность, это плохо
+
+системный вызов gettimeifday()
+
+return value ---> struct timeval {
+                        time_t tv_sec;
+                        suseconds
+
+gmtime_r() - переводит из time в дату грегорианского календаря
+
+
+strftime() - приведение к заданному формату 
+
+
+
+wait4(pid, wstatus, options, rusage)
+pid - number of proc, 0 - wait all, -1 - wait first 
+
+
+
+
+
